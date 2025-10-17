@@ -11,8 +11,8 @@ from scipy.signal import periodogram
 
 fs = 5e8 # in Hz, sampling frequency for the traces
 
-master_path = "/Users/jolan/Documents/GRAND_Work/Pipeline_ML/machine_learning" # path to the outputs datasets and plots
-classifier_path = "/Users/jolan/Documents/GRAND_Work/Pipeline_ML/machine_learning/trace_classifier_ML" # path of the main folder of the project, containing the folder sans_les_mains and trace_classifier_ML
+master_path = "/sps/grand/jlavoisier/output/ML_cuts" # path to the outputs datasets and plots
+classifier_path = "/pbs/home/j/jlavoisier/CR_radio_classifier/trace_classifier_ML" # path of the main folder of the project, containing the folder trace_classifier_ML
 
 # Paths of weights
 

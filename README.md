@@ -1,6 +1,6 @@
-# CR_radio_classifier
+# SPETCES
 
-This github project uses Machine Learning to build a classifier that discriminates between cosmic ray signals and transient noise in the radio signals for the GP300 prototype of the GRAND experiment.
+The SPETCES (Selector Post (E) Trigger for Cosmic ray EventS) project uses Machine Learning to build a classifier that discriminates between cosmic ray signals and transient noise in the radio signals for the GP300 prototype of the GRAND experiment.
 
 ## Requirements
 
