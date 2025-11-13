@@ -8,6 +8,7 @@ setup(
         'numpy',
         'matplotlib',
         'tensorflow',
-        'h5py'
+        'h5py',
+        'tensorflow_addons'
     ],
 )

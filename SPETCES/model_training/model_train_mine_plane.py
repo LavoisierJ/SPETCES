@@ -2,8 +2,8 @@ import tensorflow as tf
 import numpy as np 
 import os
 
-from model import model_1D_def, model_2D_def
-from imported_fcts import plot_loss, plot_accuracy, master_path, path_weights_mine_plain_1D, path_weights_mine_plain_2D
+from SPETCES.model_training.model import model_1D_def, model_2D_def
+from SPETCES.imported_fcts import plot_loss, plot_accuracy, master_path, path_weights_mine_plain_1D, path_weights_mine_plain_2D
 
 # -------- Importing the models ---------
 model_1D = model_1D_def()

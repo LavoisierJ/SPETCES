@@ -191,16 +191,12 @@ def number_of_antennas_in_event_signal(root_file_DC2,
 # -------------------- Create Dataset --------------------------
 
 def accumulate_traces(file_path,
-                     traces_to_save,
-                     Signal_or_Noise
+                     traces_to_save
                      ) :
     """
     Entries:
         file_path : str, path the root file containing the events to be used for the dataset
         traces_to_save : array of array, shape (-1, 3, 1024), traces to be saved in the dataset
-        Signal_or_Noise : 0 or 1, indicator if the file contains signal or noise, changing treatment
-                         1 : signal
-                         0 : noise
     Output:
         a new array of traces to be saved in the dataset, bigger than traces_to_save
     """
@@ -210,13 +206,7 @@ def accumulate_traces(file_path,
     n_event = file_root.tadc.get_number_of_entries()
 
     for i in range(n_event) :
-        if Signal_or_Noise == 1 :
-            nb_ant, indices_to_keep = number_of_antennas_in_event_signal(file_root, i)
-        elif Signal_or_Noise == 0 :
-            nb_ant, indices_to_keep = number_of_antennas_in_event_noise(file_root, i)
-        else :
-            print("Error: Signal_or_Noise should be 0 or 1.")
-            return(None)
+        nb_ant, indices_to_keep = number_of_antennas_in_event_signal(file_root, i)
         
         if nb_ant == 0 :
             continue
@@ -226,14 +216,9 @@ def accumulate_traces(file_path,
         for j in range(nb_ant) :
             index = int(indices_to_keep[j])
             trace = np.zeros((3, 1024), dtype=int)
-            if Signal_or_Noise :
-                trace[0] = file_root.tadc.trace_ch[index][0]
-                trace[1] = file_root.tadc.trace_ch[index][1]
-                trace[2] = file_root.tadc.trace_ch[index][2]
-            else :
-                trace[0] = file_root.tadc.trace_ch[index][1]
-                trace[1] = file_root.tadc.trace_ch[index][2]
-                trace[2] = file_root.tadc.trace_ch[index][3]
+            trace[0] = file_root.tadc.trace_ch[index][0]
+            trace[1] = file_root.tadc.trace_ch[index][1]
+            trace[2] = file_root.tadc.trace_ch[index][2]
 
             traces_to_save = np.append(traces_to_save, [trace], axis=0)
     
@@ -242,24 +227,19 @@ def accumulate_traces(file_path,
 
 
 def create_dataset(repert_list,
-                   save_path,
-                   Signal_or_Noise
+                   save_path
                    ) :
     """
     Entries:
         repert_list : list of str, paths to the root files containing the events to be used for the dataset
         save_path : str, path to the output dataset
-        Signal_or_Noise : 0 or 1, indicator if the file contains signal or noise, changing treatment
-                         1 : signal
-                         0 : noise
     """
 
     traces_to_save = np.zeros((0, 3, 1024), dtype=int)
     for file_path in repert_list :
         print(file_path)
         traces_to_save = accumulate_traces(file_path,
-                                          traces_to_save,
-                                          Signal_or_Noise
+                                          traces_to_save
                                           )
         print(traces_to_save.shape)
     
@@ -269,19 +249,6 @@ def create_dataset(repert_list,
 
 
 
-# Launching dataset creation
-# # # --------------------- For Noise ---------------------
-
-# repert_noise = sorted(glob('/sps/grand/data/gp80/GrandRoot/2025/07/*CD*.root'))[:4]
-# print(np.array(repert_noise))
-
-
-# save_path_noise = '/sps/grand/jlavoisier/output/ML_cuts/datasets/dataset_noise_CD_202507_500firstfiles.npy'
-
-# create_dataset(repert_noise,
-#                save_path_noise,
-#                Signal_or_Noise=1
-#                )
 
 # # # -------------------- For Signal --------------------------
 
@@ -323,21 +290,13 @@ if __name__ == "__main__":
     repert_dataset = [sys.argv[1]]
     print(np.array(repert_dataset))
 
-    Signal_or_Noise = np.int32(sys.argv[2]) # 0 for signal 1 for noise
-    print(f"Signal_or_Noise = {Signal_or_Noise}")
-
     fname = repert_dataset[0].split('/')[-1]
 
     
-    if Signal_or_Noise :
-        os.makedirs(f'{master_path}/datasets/dataset_signal/', exist_ok=True)
-        save_path = f'{master_path}/datasets/dataset_signal/' + fname.replace('.root', '.npy')
-    else:
-        os.makedirs(f'{master_path}/datasets/dataset_noise/', exist_ok=True)
-        save_path = f'{master_path}/datasets/dataset_noise/' + fname.replace('.root', '.npy')
+    os.makedirs(f'{master_path}/datasets/dataset_building_AN/NJ_sims', exist_ok=True)
+    save_path = f'{master_path}/datasets/dataset_building_AN/NJ_sims/' + fname.replace('.root', '.npy')
 
 
     create_dataset(repert_dataset,
-                save_path,
-                Signal_or_Noise=Signal_or_Noise
+                save_path
                 )

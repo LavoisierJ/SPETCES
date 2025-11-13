@@ -15,8 +15,8 @@ from glob import glob
 import grand.dataio.root_trees as rt
 import os
 
-from extract_traces import number_of_antennas_in_event_noise
-from imported_fcts import master_path
+from SPETCES.data_formating.extract_traces import number_of_antennas_in_event_noise
+from SPETCES.imported_fcts import master_path
 
 def accumulate_traces(file_path,
                       event_index
@@ -56,10 +56,11 @@ def accumulate_traces(file_path,
     return(traces_to_save)
 
 if __name__ == '__main__' :
+    list_candidates = 'pengxiong_202510'
 
-    file_names_ICRC2025 = np.loadtxt('/pbs/home/j/jlavoisier/proceeding_data/candidates/candidates_ICRC2025.txt', dtype='str')
+    file_names_ICRC2025 = np.loadtxt(f'/pbs/home/j/jlavoisier/proceeding_data/candidates/candidates_{list_candidates}.txt', dtype='str')
 
-    os.makedirs(f'{master_path}/datasets/dataset_verif/ICRC2025/', exist_ok=True)
+    os.makedirs(f'{master_path}/datasets/dataset_verif/{list_candidates}/', exist_ok=True)
     for i in range(len(file_names_ICRC2025[:,0])) :
         time_ref = file_names_ICRC2025[i,0]
         year = time_ref[0:4]
@@ -74,10 +75,14 @@ if __name__ == '__main__' :
         fname = file_path.split('/')[-1]
         
 
-        np.save(f'{master_path}/datasets/dataset_verif/ICRC2025/{time_ref}_{event_index}.npy',
+        np.save(f'{master_path}/datasets/dataset_verif/{list_candidates}/{time_ref}_{event_index}.npy',
                 traces)
         print(f"Event {event_index} of file {time_ref} treated.")
         
+
+
+
+
     # file_path = sys.argv[1]
     # event_index = int(sys.argv[2])
 
