@@ -67,8 +67,9 @@ def extract_trigger_parameters(trace, trigger_config, baseline=0):
     # Tquiet to decide the quiet time before the T1 crossing 
     for i in index_t1_crossing[mask_T1_crossing]:
        # Abs value not exceeds the T1 threshold
-        if i - trigger_config["t_quiet"]//2 < 0:
-            raise ValueError("Not enough data before T1 crossing!")
+       
+        # if i - trigger_config["t_quiet"]//2 < 0:
+        #     raise ValueError("Not enough data before T1 crossing!")
         if np.all((trace[np.max([0, i - trigger_config['t_quiet'] // 2]):i]) <= trigger_config["th1"]):
             dict_trigger_infos["index_T1_crossing"] = i
             # the first T1 crossing satisfying the quiet condition
@@ -191,131 +192,115 @@ def number_of_antennas_in_event_signal(root_file_DC2,
 # -------------------- Create Dataset --------------------------
 
 def accumulate_traces(file_path,
+                      file_shower_path,
                      traces_to_save,
-                     Signal_or_Noise
+                     info_to_save
                      ) :
     """
     Entries:
         file_path : str, path the root file containing the events to be used for the dataset
+        file_shower_path : str, path to the root file containing the shower info corresponding to the events
         traces_to_save : array of array, shape (-1, 3, 1024), traces to be saved in the dataset
-        Signal_or_Noise : 0 or 1, indicator if the file contains signal or noise, changing treatment
-                         1 : signal
-                         0 : noise
+        info_to_save : array of array, shape (-1, 10), info to be saved in the dataset
     Output:
         a new array of traces to be saved in the dataset, bigger than traces_to_save
     """
 
     file_root = rt.DataFile(file_path)
+    file_shower = rt.DataFile(file_shower_path)
+
+    fname = file_path.split('/')[-1]
+    file_number = np.int32(fname.split('_')[1].replace('-', ''))
 
     n_event = file_root.tadc.get_number_of_entries()
 
+    count_trace = 0
+    count_event = 0
+
+    if info_to_save.shape[0] != 0 :
+        count_trace += info_to_save.shape[0]
+        count_event += info_to_save[-1,1]
+
     for i in range(n_event) :
-        if Signal_or_Noise == 1 :
-            nb_ant, indices_to_keep = number_of_antennas_in_event_signal(file_root, i)
-        elif Signal_or_Noise == 0 :
-            nb_ant, indices_to_keep = number_of_antennas_in_event_noise(file_root, i)
-        else :
-            print("Error: Signal_or_Noise should be 0 or 1.")
-            return(None)
+        nb_ant, indices_to_keep = number_of_antennas_in_event_signal(file_root, i)
         
-        if nb_ant == 0 :
+        if nb_ant <= 4 :
             continue
         
         file_root.tadc.get_entry(i)
+        file_shower.tshower.get_entry(i)
 
         for j in range(nb_ant) :
             index = int(indices_to_keep[j])
             trace = np.zeros((3, 1024), dtype=int)
-            if Signal_or_Noise :
-                trace[0] = file_root.tadc.trace_ch[index][0]
-                trace[1] = file_root.tadc.trace_ch[index][1]
-                trace[2] = file_root.tadc.trace_ch[index][2]
-            else :
-                trace[0] = file_root.tadc.trace_ch[index][1]
-                trace[1] = file_root.tadc.trace_ch[index][2]
-                trace[2] = file_root.tadc.trace_ch[index][3]
+            trace[0] = file_root.tadc.trace_ch[index][0]
+            trace[1] = file_root.tadc.trace_ch[index][1]
+            trace[2] = file_root.tadc.trace_ch[index][2]
+
+
 
             traces_to_save = np.append(traces_to_save, [trace], axis=0)
-    
-    return(traces_to_save)
+
+            info_array = np.array([count_trace,
+                                   file_number,
+                                   i,
+                                   nb_ant,
+                                   file_root.tadc.du_id[index],
+                                   0,
+                                   0,
+                                   0,
+                                   0,
+                                   file_shower.tshower.zenith*np.pi/180.,
+                                   file_shower.tshower.azimuth*np.pi/180.
+                                   ])
+            info_to_save = np.append(info_to_save, [info_array], axis=0)
+            count_trace += 1
+        count_event += 1
+
+    # info_to_save = np.append(info_to_save, [info_array], axis=0)
+    return(traces_to_save, info_to_save)
 
 
 
 def create_dataset(repert_list,
-                   save_path,
-                   Signal_or_Noise
+                   save_path
                    ) :
     """
     Entries:
         repert_list : list of str, paths to the root files containing the events to be used for the dataset
         save_path : str, path to the output dataset
-        Signal_or_Noise : 0 or 1, indicator if the file contains signal or noise, changing treatment
-                         1 : signal
-                         0 : noise
     """
 
-    traces_to_save = np.zeros((0, 3, 1024), dtype=int)
+    traces_to_save = np.zeros((0, 3, 1024), dtype=np.int32)
+    info_to_save = np.zeros((0, 11), dtype=np.float32)
     for file_path in repert_list :
         print(file_path)
-        traces_to_save = accumulate_traces(file_path,
-                                          traces_to_save,
-                                          Signal_or_Noise
-                                          )
+        file_shower = '/'.join(file_path.split('/')[:-1]) + '/shower' + fname[3:].replace('L1_0000', 'L0_0000')
+        traces_to_save, info_to_save = accumulate_traces(file_path,
+                                                         file_shower,
+                                                         traces_to_save,
+                                                         info_to_save
+                                                         )
         print(traces_to_save.shape)
+        print(info_to_save.shape)
     
-    np.save(save_path, traces_to_save)
+    save_path_trace = save_path + '/traces.npy'
+    save_path_info = save_path + '/info.npy'
+
+    if traces_to_save.shape[0] == 0 :
+        print("No trace selected, exiting...")
+        return(None)
+
+    os.makedirs(save_path, exist_ok=True)
+
+    if not traces_to_save.shape[0] == info_to_save.shape[0] :
+        print("Error: number of traces and info do not match!")
+        return(None)
+    np.save(save_path_trace, traces_to_save)
+    np.save(save_path_info, info_to_save)
     print(f"Dataset saved at {save_path}, shape: {traces_to_save.shape}")
     return(None)
 
-
-
-# Launching dataset creation
-# # # --------------------- For Noise ---------------------
-
-# repert_noise = sorted(glob('/sps/grand/data/gp80/GrandRoot/2025/07/*CD*.root'))[:4]
-# print(np.array(repert_noise))
-
-
-# save_path_noise = '/sps/grand/jlavoisier/output/ML_cuts/datasets/dataset_noise_CD_202507_500firstfiles.npy'
-
-# create_dataset(repert_noise,
-#                save_path_noise,
-#                Signal_or_Noise=1
-#                )
-
-# # # -------------------- For Signal --------------------------
-
-# repert_signal = sorted(glob('/sps/grand/DC2.1rc4/GP*ZHAireS-AN/*/adc*_L1_0000.root'))
-
-
-# save_path_signal = '/sps/grand/jlavoisier/output/ML_cuts/datasets/dataset_signal_DC2rc4_AN.npy'
-
-# create_dataset(repert_signal,
-#                save_path_signal,
-#                Signal_or_Noise=0
-#                )
-
-# ---------------------- For tests -----------------------
-
-# repert_signal = [glob('/sps/grand/DC2.1rc4/GP289ZHAireS-AN/*/adc_*_L1_0000.root')[0]]
-# print(repert_signal)
-
-# save_path_signal = '/sps/grand/jlavoisier/output/ML_cuts/datasets/dataset_signal_test.npy'
-
-# create_dataset(repert_signal,
-#                save_path_signal,
-#                Signal_or_Noise=0
-#                )
-
-# repert_noise = [glob('/sps/grand/data/gp80/GrandRoot/2025/07/*CD*.root')[0]]
-# print(repert_noise)
-
-# save_path_noise = '/sps/grand/jlavoisier/output/ML_cuts/datasets/dataset_noise_test.npy'
-
-# create_dataset(repert_noise,
-#                save_path_noise,
-#                Signal_or_Noise=1
-#                )
 
 # ---------------------- For Job Submission ------------------------
 
@@ -323,21 +308,12 @@ if __name__ == "__main__":
     repert_dataset = [sys.argv[1]]
     print(np.array(repert_dataset))
 
-    Signal_or_Noise = np.int32(sys.argv[2]) # 0 for signal 1 for noise
-    print(f"Signal_or_Noise = {Signal_or_Noise}")
-
     fname = repert_dataset[0].split('/')[-1]
 
+    save_path = f'{master_path}/gathered_traces/sims_NJ/' + fname
     
-    if Signal_or_Noise :
-        os.makedirs(f'{master_path}/datasets/dataset_signal/', exist_ok=True)
-        save_path = f'{master_path}/datasets/dataset_signal/' + fname.replace('.root', '.npy')
-    else:
-        os.makedirs(f'{master_path}/datasets/dataset_noise/', exist_ok=True)
-        save_path = f'{master_path}/datasets/dataset_noise/' + fname.replace('.root', '.npy')
 
 
     create_dataset(repert_dataset,
-                save_path,
-                Signal_or_Noise=Signal_or_Noise
+                save_path
                 )

@@ -3,7 +3,7 @@ import numpy as np
 from glob import glob
 
 from SPETCES.imported_fcts import master_path
-from SPETCES.data_formating.extract_traces import pass_T1
+from SPETCES.data_formating.traces_gathering import pass_T1
 
 
 """

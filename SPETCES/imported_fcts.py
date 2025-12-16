@@ -39,10 +39,136 @@ def measure_SNR(traces) :
         signal_power = np.zeros(2)
         noise_power = np.zeros(2)
         for k in range(2) :
+            max_pos=np.argmax(traces[i, :, k])
             signal_power[k] = np.max(traces[i, :, k])
-            noise_power[k] = np.std(np.concatenate((traces[i, 0:np.argmax(traces[i, :, k])-10, k], traces[i, np.argmax(traces[i, :, k])+10:512, k])))
+            noise_power[k] = np.std(np.append(traces[i, 0:np.maximum(0,max_pos-40), k], traces[i, np.minimum(max_pos+40,512):512, k]))
         SNRs[i] = np.max(signal_power / noise_power)
     return SNRs
+
+# ------------------------------ Functions from Sei's codes ------------------------------------------
+
+def apply_notch_filter(trace, which_filter, f_sample):
+
+    '''
+    Input parameters:
+    trace (ndarray[n_sample]): Time trace of ADC counts
+    which_filter (= 1, 2, 3, or 4): Notch filter used
+    f_sample (Hz): Sampling frequency (usually 500 MHz = 500e6 Hz)
+    '''
+
+    if which_filter == 1: # Filter 1 parameters
+        f_notch = 39e6
+        r = 0.9
+    elif which_filter == 2:  # Filter 2 parameters
+        f_notch = 119.4e6
+        r  = 0.94
+    elif which_filter == 3:  # Filter 3 parameters
+        f_notch = 132e6
+        r  = 0.95
+    elif which_filter == 4:  # Filter 4 parameters
+        f_notch = 137.8e6
+        r  = 0.98
+
+    nu = 2. * np.pi * f_notch / f_sample
+
+    ### Calculation of coefficients
+    a1 = 2. * (r ** 4) * np.cos(4.*nu)
+    a2 = - (r ** 8)
+    b1 = - 2. * np.cos(nu)
+    b2 = 1
+    b3 = 2. * r * np.cos(nu)
+    b4 = r * r
+    b5 = 2. * r * r * np.cos(2.*nu)
+    b6 = r ** 4
+
+    ### Calculation of the trace after passing the digital notch filter
+    ### Parameters:
+    ### y[n_sample]: output trace
+    ### y1[n_sample] & y2[n_sample]: intermediate variables
+    y, y1, y2 = np.zeros(trace.shape[0]), np.zeros(trace.shape[0]), np.zeros(trace.shape[0])
+
+    for n in range(trace.shape[0]):
+        y1[n] = b2 * trace[n] + b1 * trace[n-1] + trace[n-2]
+        y2[n] = y1[n] + b3 * y1[n-1] + b4 * y1[n-2]
+        #y[n]  = a1 * y[n-4] + a2 * y[n-8] + y2[n-2] + b5 * y2[n-4] + b6 * y2[n-6]
+        y[n]  = (int)(a1 * y[n-4] + a2 * y[n-8] + y2[n-2] + b5 * y2[n-4] + b6 * y2[n-6])
+
+    return y
+
+
+
+def four_notch_filters(tadc_trace, f_sample):
+
+    ### Four notch filters @ 39, 119.4, 132, & 137.8 MHz
+    
+    return apply_notch_filter(apply_notch_filter(apply_notch_filter(apply_notch_filter(tadc_trace, 1, f_sample), 2, f_sample), 3, f_sample), 4, f_sample)
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def plot_loghist(x, bins, label, alpha):
+    """
+    Plot histogram in log scale
+    """
+    hist, bins = np.histogram(x, bins=bins)
+    logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+    plt.hist(x, bins=logbins, label=label, alpha=alpha)
+    plt.xscale('log')
+
+    
+def measure_sigma(traces) :
+    """
+    Entries:
+        traces: np.array of shape (n_traces, 512, 2)
+    Output:
+        sigmas: np.array of shape (n_traces, 2), background noise level for each channel of each trace
+    """
+    n_traces = traces.shape[0]
+    sigmas = np.zeros((n_traces, 2))
+    for i in range(n_traces) :
+        for k in range(2) :
+            max_pos=np.argmax(traces[i, :, k])
+            sigmas[i, k] = np.std(np.append(traces[i, 0:np.maximum(0,max_pos-40), k], traces[i, np.minimum(max_pos+40,512):512, k]))
+    return sigmas
+
+# ----------------- Functions for testing -----------------
+
+def confusion_matrix(predictions,
+                     true_labels,
+                     threshold=0.5
+                     ) :
+    """
+    Compute the confusion matrix for binary classification
+    Entries:
+        predictions: np.array of shape (n_samples,)
+        true_labels: np.array of shape (n_samples,)
+        threshold: float, threshold for binary classification
+    Output:
+        cm: np.array of shape (2, 2), confusion matrix
+        [[TN, FN], [FP, TP]]
+    """
+    predictions_binary = (predictions > threshold).astype(int)
+    true_labels_binary = (true_labels > threshold).astype(int)
+    cm = np.zeros((2, 2))
+    for i in range(len(predictions_binary)):
+        cm[true_labels_binary[i], predictions_binary[i]] += 1
+    return cm
+
+def accuracy_precison_recall(cm) :
+    """
+    Compute accuracy, precision and recall from confusion matrix
+    Entries:
+        cm: np.array of shape (2, 2), confusion matrix
+        [[TN, FN], [FP, TP]]
+    Output:
+        accuracy: float, accuracy score
+        precision: float, precision score
+        recall: float, recall score
+    """
+    TN, FN, FP, TP = cm.ravel()
+    accuracy = (TP + TN) / (TP + TN + FP + FN)
+    precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+    return accuracy, precision, recall
 
 # ---------- Plotting functions ----------
 
@@ -53,9 +179,11 @@ def plot_loss(history,
     plt.plot(history.epoch, np.array(history.history['loss']),label = 'Train loss')
     plt.plot(history.epoch, np.array(history.history['val_loss']),label = 'Validation loss')
     plt.grid()
-    plt.legend()
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss (binary crossentropy)')
+    plt.legend(fontsize=14)
+    plt.xlabel('Epoch', fontsize=14)
+    plt.ylabel('Loss (binary crossentropy)', fontsize=14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.yscale('log')
     plt.tight_layout()
     plt.savefig(save_path)
@@ -70,14 +198,29 @@ def plot_accuracy(history,
     plt.plot(history.epoch, np.array(history.history['accuracy']),label = 'Train accuracy')
     plt.plot(history.epoch, np.array(history.history['val_accuracy']),label = 'Validation accuracy')
     plt.grid()
-    plt.legend()
+    plt.legend(fontsize=14)
     plt.title(str(int(np.ceil(history.history['accuracy'][-1]*100)))+'%')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch', fontsize=14)
+    plt.ylabel('Accuracy', fontsize=14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.tight_layout()
     plt.savefig(save_path)
     if display:
         plt.show()
+    plt.close()
+
+def plot_learning_rate(history,
+                       save_path
+                       ) :
+    plt.plot(history.epoch, np.array(history.history['learning_rate']),label = 'Learning rate')
+    plt.xlabel('Epoch', fontsize=14)
+    plt.ylabel('Learning rate', fontsize=14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.show()
     plt.close()
 
 def plot_trace(trace,
@@ -86,7 +229,7 @@ def plot_trace(trace,
                ) :
     """
     Entries:
-        trace: trace to plot, shape (512, 2)
+        trace: trace to plot, shape (n_points, 2)
         save_path: str, path wherein to save plot
         title: str, title of the plot
     Output:
@@ -95,7 +238,7 @@ def plot_trace(trace,
     plt.figure(figsize=(10, 6))
     for k in range(2):
         plt.plot(
-                np.linspace(0,1024, 512),
+                np.linspace(0,trace.shape[0]*2, trace.shape[0]),
                     trace[: ,k], 
                     label=f'Channel {k+1}')
     plt.title(title)
@@ -111,7 +254,7 @@ def plot_trace_and_PSD(trace,
                        ) :
     """
     Entries:
-        trace: trace to plot, shape (512, 2)
+        trace: trace to plot, shape (n_points, 2)
         save_path: str, path wherein to save plot
         title: str, title of the plot
     Output:
@@ -122,7 +265,7 @@ def plot_trace_and_PSD(trace,
     fig.suptitle(title)
     for k in range(2):
         ax[0].plot(
-                np.linspace(0,1024, 512),
+                np.linspace(0,trace.shape[0]*2, trace.shape[0]),
                     trace[: ,k], 
                     label=f'Channel {k+1}')
     ax[0].set_xlabel('Time (ns)')
@@ -140,17 +283,20 @@ def plot_trace_and_PSD(trace,
 
 
 def PSD_dataset(repertory_dataset,
-                save_path
+                save_path,
+                title=None
                 ) :
     """
     Entries:
         repertory_dataset: str, path to the .npy files of the dataset
         save_path: str, path wherein to save plot
+        title: str, title of the dataset
     Output:
         None, saves a plot of the average PSD of the dataset in save_path
     """
+    
     data = np.load(repertory_dataset[0])
-    plt.figure(figsize=(10,6))
+    plt.figure(figsize=(7, 4))
     fx, Pxx = periodogram(data[0,:,0], fs=fs)
     fy, Pxy = periodogram(data[0,:,1], fs=fs)
 
@@ -175,9 +321,10 @@ def PSD_dataset(repertory_dataset,
                fontsize=14)
     plt.ylabel('PSD [ADC^2/Hz]',
                fontsize=14)
+    plt.ylim(ymin=1e-8)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
-    plt.title(f'PSD for dataset {repertory_dataset.split("/")[-1]}',
+    plt.title(f'PSD for dataset {title}',
               wrap=True,
               fontsize=16)
     plt.legend(fontsize=12)
@@ -196,7 +343,8 @@ def plot_predict_wrt_SNR(SNR,
                          title=None,
                          accuracy=False,
                          predict_threshold=0.5,
-                         predict_mean=False
+                         predict_mean=False,
+                         x_label='SNR'
                          ) :
     """
     Entries:
@@ -214,14 +362,16 @@ def plot_predict_wrt_SNR(SNR,
     """
     plt.figure(figsize=(10,6))
 
-    plt.scatter(SNR[true_labels==0], predictions[true_labels==0],
-                label='Noise traces',
-                c='tab:blue',
-                alpha=0.5)
-    plt.scatter(SNR[true_labels==1], predictions[true_labels==1],
-                label='Signal traces',
-                c='tab:orange',
-                alpha=0.5)
+    if len([true_labels==0])!=0 :
+        plt.scatter(SNR[true_labels==0], predictions[true_labels==0],
+                    label='Noise traces',
+                    c='tab:blue',
+                    alpha=0.5)
+    if len([true_labels==1])!=0 :
+        plt.scatter(SNR[true_labels==1], predictions[true_labels==1],
+                    label='Signal traces',
+                    c='tab:orange',
+                    alpha=0.5)
     plt.plot([0, np.max(SNR)], 
              [predict_threshold, predict_threshold],
              color='black',
@@ -264,19 +414,21 @@ def plot_predict_wrt_SNR(SNR,
             predict_mean_noise[i] = np.mean(predictions[(true_labels==0) & (SNR>=SNR_min) & (SNR<SNR_max)])
         
         for i in range(nb_intervals) :
-            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                     np.array([predict_mean_noise[i],predict_mean_noise[i]]),
-                     c='blue',
-                    #  linestyle='dotted',
-                     label='Mean noise prediction' if i==0 else "")
-            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                     np.array([predict_mean_signal[i],predict_mean_signal[i]]),
-                     c='red',
-                    #  linestyle='dotted',
-                     label='Mean signal prediction' if i==0 else "")
+            if len([true_labels==0])!=0 :
+                plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
+                        np.array([predict_mean_noise[i],predict_mean_noise[i]]),
+                        c='blue',
+                        #  linestyle='dotted',
+                        label='Mean noise prediction' if i==0 else "")
+            if len([true_labels==1])!=0 :
+                plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
+                        np.array([predict_mean_signal[i],predict_mean_signal[i]]),
+                        c='red',
+                        #  linestyle='dotted',
+                        label='Mean signal prediction' if i==0 else "")
 
     # --------------------------------------------------------------------------------------
-    plt.xlabel('SNR',
+    plt.xlabel(f'{x_label}',
                fontsize=14)
     plt.ylabel('Prediction',
                fontsize=14)
@@ -308,7 +460,9 @@ def plot_predict_wrt_SNR_CRC(SNR,
                              display=True,
                              title=None,
                              predict_threshold=0.5,
-                             predict_mean=False
+                             predict_mean=False,
+                             nb_intervals=6,
+                             x_label='SNR'
                              ) :
     """
     Entries:
@@ -328,7 +482,7 @@ def plot_predict_wrt_SNR_CRC(SNR,
                 label='Signal traces',
                 alpha=0.5)
     plt.scatter(SNR[true_labels==2], predictions[true_labels==2],
-                label='ICRC2025 Cosmics',
+                label='CRC',
                 alpha=0.5,
                 color='red')
     plt.plot([0, np.max(SNR)], 
@@ -336,7 +490,41 @@ def plot_predict_wrt_SNR_CRC(SNR,
              color='black',
              linestyle='--',
              label='Validation threshold')
-    plt.xlabel('SNR',
+    
+    # --------------------------------------------------------------------------------------
+    if predict_mean :
+        predict_mean_signal = np.zeros(nb_intervals) # 6 intervals between SNR=4 and max_SNR
+        predict_mean_noise = np.zeros(nb_intervals)
+        predict_mean_CRC = np.zeros(nb_intervals)
+
+        step = (np.ceil(np.max(SNR))-4)/nb_intervals
+        for i in range(nb_intervals) :
+            SNR_min = 4 + i*step
+            SNR_max = 4 + (i+1)*step
+            predict_mean_signal[i] = np.mean(predictions[(true_labels==1) & (SNR>=SNR_min) & (SNR<SNR_max)])
+            predict_mean_noise[i] = np.mean(predictions[(true_labels==0) & (SNR>=SNR_min) & (SNR<SNR_max)])
+            predict_mean_CRC[i] = np.mean(predictions[(true_labels==2) & (SNR>=SNR_min) & (SNR<SNR_max)])
+        
+        for i in range(nb_intervals) :
+            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
+                     np.array([predict_mean_noise[i],predict_mean_noise[i]]),
+                     c='tab:blue',
+                    #  linestyle='dotted',
+                     label='Mean noise prediction' if i==0 else "")
+            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
+                     np.array([predict_mean_signal[i],predict_mean_signal[i]]),
+                     c='tab:orange',
+                    #  linestyle='dotted',
+                     label='Mean signal prediction' if i==0 else "")
+            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
+                     np.array([predict_mean_CRC[i],predict_mean_CRC[i]]),
+                     c='red',
+                    #  linestyle='dotted',
+                     label='Mean CRC prediction' if i==0 else "")
+
+    # --------------------------------------------------------------------------------------
+
+    plt.xlabel(f'{x_label}',
                fontsize=14)
     plt.ylabel('Prediction',
                fontsize=14)

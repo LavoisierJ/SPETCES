@@ -5,13 +5,14 @@ This program separates the noise and signal datasets to have two distinct train 
 import numpy as np
 from SPETCES.imported_fcts import master_path
 
-# data_noise = np.load(f'{master_path}/datasets/dataset_preliminary_work/dataset_20k/raw_dataset/noise_dataset_20000_traces_noise15_SNR4.npy')
-# data_signal = np.load(f'{master_path}/datasets/dataset_preliminary_work/dataset_20k/raw_dataset/simu_dataset_20000_traces_noise15_SNR4.npy')
+dataset_name = 'dataset_real_CR2'
 
-data_signal = np.load(f'{master_path}/datasets/dataset_preliminary_work/dataset_1k_handmadeAN/raw_dataset/AN_handmade_NJ_sims_with_noise.npy')
+# data_noise = np.load(f'{master_path}/datasets/{dataset_name}/raw_dataset/noise_dataset_1002_traces_noise15_SNR4_traces.npy')
+# info_noise = np.load(f'{master_path}/datasets/{dataset_name}/raw_dataset/noise_dataset_1002_traces_noise15_SNR4_info.npy')
 
-# data_noise = np.load(f'{master_path}/datasets/dataset_preliminary_work/prelim_mine_plane/raw_dataset/traces_to_save_mine.npy')
-# data_signal = np.load(f'{master_path}/datasets/dataset_preliminary_work/prelim_mine_plane/raw_dataset/traces_to_save_plane.npy')
+data_signal = np.load(f'{master_path}/datasets/{dataset_name}/raw_dataset/marion_202512_sure_1701_full_traces.npy')
+info_signal = np.load(f'{master_path}/datasets/{dataset_name}/raw_dataset/marion_202512_sure_1701_full_info.npy')
+
 
 test_prop = 0.2
 
@@ -24,24 +25,34 @@ print(f'Number of test traces: {number_test}, number of train traces: {number_tr
 liste = np.arange(number_data)
 np.random.shuffle(liste)
 
+# creer une façon de séparer les evenements en entier de façon à avoir tout de même des events complets dans le train et dans le test
+
 # Create train and test sets
 # train_set_noise = data_noise[liste[:number_train]]
 # test_set_noise = data_noise[liste[number_train:]]
 
+# train_info_noise = info_noise[liste[:number_train]]
+# test_info_noise = info_noise[liste[number_train:]]
+
+
 train_set_signal = data_signal[liste[:number_train]]
 test_set_signal = data_signal[liste[number_train:]]
 
+test_info_signal = info_signal[liste[number_train:]]
+train_info_signal = info_signal[liste[:number_train]]
+
 # Save datasets
 
-np.save(f'{master_path}/datasets/dataset_preliminary_work/dataset_1k_handmadeAN/train_test_datasets/simu_dataset_train_800_traces_noise15_SNR4.npy', train_set_signal)
-np.save(f'{master_path}/datasets/dataset_preliminary_work/dataset_1k_handmadeAN/train_test_datasets/simu_dataset_test_200_traces_noise15_SNR4.npy', test_set_signal)
+# Train
+# np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/mine_dataset_train_800_traces_noise25_SNR4_traces.npy', train_set_noise)
+# np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/mine_dataset_train_800_traces_noise25_SNR4_info.npy', train_info_noise)
 
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/dataset_20k/train_test_datasets/noise_dataset_train_16000_traces_noise15_SNR4.npy', train_set_noise)
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/dataset_20k/train_test_datasets/noise_dataset_test_4000_traces_noise15_SNR4.npy', test_set_noise)
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/dataset_20k/train_test_datasets/simu_dataset_train_16000_traces_noise15_SNR4.npy', train_set_signal)
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/dataset_20k/train_test_datasets/simu_dataset_test_4000_traces_noise15_SNR4.npy', test_set_signal)
+np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/CR_real_dataset_train_{number_train}_traces_noise25_SNR4_traces.npy', train_set_signal)
+np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/CR_real_dataset_train_{number_train}_traces_noise25_SNR4_info.npy', train_info_signal)
 
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/prelim_mine_plane/train_test_datasets/mine_dataset_train_800.npy', train_set_noise)
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/prelim_mine_plane/train_test_datasets/mine_dataset_test_200.npy', test_set_noise)
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/prelim_mine_plane/train_test_datasets/plane_dataset_train_800.npy', train_set_signal)
-# np.save(f'{master_path}/datasets/dataset_preliminary_work/prelim_mine_plane/train_test_datasets/plane_dataset_test_200.npy', test_set_signal)
+# Test
+# np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/mine_dataset_test_200_traces_noise25_SNR4_traces.npy', test_set_noise)
+# np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/mine_dataset_test_200_traces_noise25_SNR4_info.npy', test_info_noise)
+
+np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/CR_real_dataset_test_{number_test}_traces_noise25_SNR4_traces.npy', test_set_signal)
+np.save(f'{master_path}/datasets/{dataset_name}/train_test_datasets/CR_real_dataset_test_{number_test}_traces_noise25_SNR4_info.npy', test_info_signal)
