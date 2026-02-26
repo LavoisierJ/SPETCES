@@ -4,9 +4,9 @@ The SPETCES (Selector Post (E) Trigger for Cosmic ray EventS) project uses Machi
 
 ## Requirements
 
-To run the full analysis, you need to have the `grand` module installed. It is need for extracting the datasets from the GRAND data/sims (directory `data_formating`). 
+To run the full analysis, you need to have the `grand` module installed. It is needed to extract the datasets from the GRAND data/sims (directory `data_formating`). 
 
-If you already have access to the correct datatsets, the `grand` module is not needed elsewhere.
+If you already have access to the correct datasets, the `grand` module is not needed elsewhere.
 
 ## How to use
 
@@ -17,4 +17,4 @@ The first is used as an output directory (datasets and plots). The second should
 The directory `data_formating` contains all programs building the datasets needed for the training of the ML models.
 Note that the `validation_1_datasets.py` program builds a validation dataset to check if the model reacts well to identified cosmic ray signals (tested in `model_testing/verif_1.py`).
 
-The directory `model_training` contains all programs that define, rain and test the model.
+The directory `model_training` contains all programs that define, train and test the model.

@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import os
 from scipy.signal import periodogram
+import warnings
 
 fs = 5e8 # in Hz, sampling frequency for the traces
 
@@ -44,6 +45,21 @@ def measure_SNR(traces) :
             noise_power[k] = np.std(np.append(traces[i, 0:np.maximum(0,max_pos-40), k], traces[i, np.minimum(max_pos+40,512):512, k]))
         SNRs[i] = np.max(signal_power / noise_power)
     return SNRs
+
+def binary_crossentropy(y_true, y_pred) :
+    """
+    Compute binary crossentropy loss between true labels and predictions
+    Entries:
+        y_true: np.array of shape (n_samples,), true labels (0 or 1)
+        y_pred: np.array of shape (n_samples,), predicted probabilities (between 0 and 1)
+    Output:
+        loss: array, binary crossentropy loss
+    """
+    epsilon = 1e-8 # to avoid log(0)
+    # y_pred = np.clip(y_pred, epsilon, 1 - epsilon) # clip predictions to avoid log(0)
+    loss = -(y_true * np.log(np.clip(y_pred, epsilon, 1 - epsilon)) + (1 - y_true) * np.log(np.clip(1 - y_pred, epsilon, 1 - epsilon)))
+    # print("y_true: ", y_true, ", y_pred: ", y_pred, ", loss: ", loss)
+    return loss
 
 # ------------------------------ Functions from Sei's codes ------------------------------------------
 
@@ -105,13 +121,13 @@ def four_notch_filters(tadc_trace, f_sample):
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def plot_loghist(x, bins, label, alpha):
+def plot_loghist(x, bins, label, alpha, density=False):
     """
     Plot histogram in log scale
     """
     hist, bins = np.histogram(x, bins=bins)
     logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
-    plt.hist(x, bins=logbins, label=label, alpha=alpha)
+    plt.hist(x, bins=logbins, label=label, alpha=alpha, density=density)
     plt.xscale('log')
 
     
@@ -179,11 +195,11 @@ def plot_loss(history,
     plt.plot(history.epoch, np.array(history.history['loss']),label = 'Train loss')
     plt.plot(history.epoch, np.array(history.history['val_loss']),label = 'Validation loss')
     plt.grid()
-    plt.legend(fontsize=14)
-    plt.xlabel('Epoch', fontsize=14)
-    plt.ylabel('Loss (binary crossentropy)', fontsize=14)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.legend(fontsize=18)
+    plt.xlabel('Epoch', fontsize=18)
+    plt.ylabel('Loss (binary crossentropy)', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.yscale('log')
     plt.tight_layout()
     plt.savefig(save_path)
@@ -198,12 +214,13 @@ def plot_accuracy(history,
     plt.plot(history.epoch, np.array(history.history['accuracy']),label = 'Train accuracy')
     plt.plot(history.epoch, np.array(history.history['val_accuracy']),label = 'Validation accuracy')
     plt.grid()
-    plt.legend(fontsize=14)
-    plt.title(str(int(np.ceil(history.history['accuracy'][-1]*100)))+'%')
-    plt.xlabel('Epoch', fontsize=14)
-    plt.ylabel('Accuracy', fontsize=14)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.legend(fontsize=18)
+    plt.title(str(int(np.ceil(history.history['accuracy'][-1]*100)))+'%', 
+              fontsize=18)
+    plt.xlabel('Epoch', fontsize=18)
+    plt.ylabel('Accuracy', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.tight_layout()
     plt.savefig(save_path)
     if display:
@@ -211,16 +228,18 @@ def plot_accuracy(history,
     plt.close()
 
 def plot_learning_rate(history,
-                       save_path
+                       save_path,
+                       display=True
                        ) :
     plt.plot(history.epoch, np.array(history.history['learning_rate']),label = 'Learning rate')
-    plt.xlabel('Epoch', fontsize=14)
-    plt.ylabel('Learning rate', fontsize=14)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.xlabel('Epoch', fontsize=18)
+    plt.ylabel('Learning rate', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.tight_layout()
     plt.savefig(save_path)
-    plt.show()
+    if display:
+        plt.show()
     plt.close()
 
 def plot_trace(trace,
@@ -344,7 +363,9 @@ def plot_predict_wrt_SNR(SNR,
                          accuracy=False,
                          predict_threshold=0.5,
                          predict_mean=False,
-                         x_label='SNR'
+                         x_label='SNR',
+                         zoom_SNR=False,
+                         zoom_window=(0,40)
                          ) :
     """
     Entries:
@@ -403,29 +424,35 @@ def plot_predict_wrt_SNR(SNR,
     
     # --------------------------------------------------------------------------------------
     if predict_mean :
-        nb_intervals = 6
+        intervals = np.array([4,5,6,8,10,13,16,20,25,30,35,40,50,60,70,80,90,100])
+        nb_intervals = len(intervals)-1
         predict_mean_signal = np.zeros(nb_intervals) # 6 intervals between SNR=4 and max_SNR
         predict_mean_noise = np.zeros(nb_intervals)
-        step = (np.ceil(np.max(SNR))-4)/nb_intervals
-        for i in range(nb_intervals) :
-            SNR_min = 4 + i*step
-            SNR_max = 4 + (i+1)*step
-            predict_mean_signal[i] = np.mean(predictions[(true_labels==1) & (SNR>=SNR_min) & (SNR<SNR_max)])
-            predict_mean_noise[i] = np.mean(predictions[(true_labels==0) & (SNR>=SNR_min) & (SNR<SNR_max)])
-        
-        for i in range(nb_intervals) :
-            if len([true_labels==0])!=0 :
-                plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                        np.array([predict_mean_noise[i],predict_mean_noise[i]]),
-                        c='blue',
-                        #  linestyle='dotted',
-                        label='Mean noise prediction' if i==0 else "")
-            if len([true_labels==1])!=0 :
-                plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                        np.array([predict_mean_signal[i],predict_mean_signal[i]]),
-                        c='red',
-                        #  linestyle='dotted',
-                        label='Mean signal prediction' if i==0 else "")
+
+        # step = (np.ceil(np.max(SNR))-4)/nb_intervals
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            for i in range(nb_intervals) :
+                SNR_min = intervals[i]   # 4 + i*step
+                SNR_max = intervals[i+1] # 4 + (i+1)*step
+
+                predict_mean_signal[i] = np.mean(predictions[(true_labels==1) & (SNR>=SNR_min) & (SNR<SNR_max)])
+                predict_mean_noise[i] = np.mean(predictions[(true_labels==0) & (SNR>=SNR_min) & (SNR<SNR_max)])
+            
+            for i in range(nb_intervals) :
+                if len([true_labels==0])!=0 :
+                    plt.plot(np.array([intervals[i], intervals[i+1]]),
+                            np.array([predict_mean_noise[i],predict_mean_noise[i]]),
+                            c='blue',
+                            #  linestyle='dotted',
+                            label='Mean noise prediction' if i==0 else "")
+                if len([true_labels==1])!=0 :
+                    plt.plot(np.array([intervals[i], intervals[i+1]]),
+                            np.array([predict_mean_signal[i],predict_mean_signal[i]]),
+                            c='red',
+                            #  linestyle='dotted',
+                            label='Mean signal prediction' if i==0 else "")
 
     # --------------------------------------------------------------------------------------
     plt.xlabel(f'{x_label}',
@@ -434,6 +461,8 @@ def plot_predict_wrt_SNR(SNR,
                fontsize=14)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
+    if zoom_SNR :
+        plt.xlim(zoom_window)
     plt.grid()
     if title is not None:
         plt.title(title,
@@ -461,8 +490,10 @@ def plot_predict_wrt_SNR_CRC(SNR,
                              title=None,
                              predict_threshold=0.5,
                              predict_mean=False,
-                             nb_intervals=6,
-                             x_label='SNR'
+                            #  nb_intervals=6,
+                             x_label='SNR',
+                             zoom_SNR=False,
+                             zoom_window=(0,40)
                              ) :
     """
     Entries:
@@ -493,34 +524,38 @@ def plot_predict_wrt_SNR_CRC(SNR,
     
     # --------------------------------------------------------------------------------------
     if predict_mean :
+        intervals = np.array([4,5,6,8,10,13,16,20,25,30,35,40,50,60,70,80,90,100])
+        nb_intervals = len(intervals)-1
         predict_mean_signal = np.zeros(nb_intervals) # 6 intervals between SNR=4 and max_SNR
         predict_mean_noise = np.zeros(nb_intervals)
         predict_mean_CRC = np.zeros(nb_intervals)
 
-        step = (np.ceil(np.max(SNR))-4)/nb_intervals
-        for i in range(nb_intervals) :
-            SNR_min = 4 + i*step
-            SNR_max = 4 + (i+1)*step
-            predict_mean_signal[i] = np.mean(predictions[(true_labels==1) & (SNR>=SNR_min) & (SNR<SNR_max)])
-            predict_mean_noise[i] = np.mean(predictions[(true_labels==0) & (SNR>=SNR_min) & (SNR<SNR_max)])
-            predict_mean_CRC[i] = np.mean(predictions[(true_labels==2) & (SNR>=SNR_min) & (SNR<SNR_max)])
-        
-        for i in range(nb_intervals) :
-            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                     np.array([predict_mean_noise[i],predict_mean_noise[i]]),
-                     c='tab:blue',
-                    #  linestyle='dotted',
-                     label='Mean noise prediction' if i==0 else "")
-            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                     np.array([predict_mean_signal[i],predict_mean_signal[i]]),
-                     c='tab:orange',
-                    #  linestyle='dotted',
-                     label='Mean signal prediction' if i==0 else "")
-            plt.plot(np.array([4 + i*step, 4 + (i+1)*step]),
-                     np.array([predict_mean_CRC[i],predict_mean_CRC[i]]),
-                     c='red',
-                    #  linestyle='dotted',
-                     label='Mean CRC prediction' if i==0 else "")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # step = (np.ceil(np.max(SNR))-4)/nb_intervals
+            for i in range(nb_intervals) :
+                SNR_min = intervals[i]   # 4 + i*step
+                SNR_max = intervals[i+1] # 4 + (i+1)*step
+                predict_mean_signal[i] = np.mean(predictions[(true_labels==1) & (SNR>=SNR_min) & (SNR<SNR_max)])
+                predict_mean_noise[i] = np.mean(predictions[(true_labels==0) & (SNR>=SNR_min) & (SNR<SNR_max)])
+                predict_mean_CRC[i] = np.mean(predictions[(true_labels==2) & (SNR>=SNR_min) & (SNR<SNR_max)])
+            
+            for i in range(nb_intervals) :
+                plt.plot(np.array([intervals[i], intervals[i+1]]),
+                        np.array([predict_mean_noise[i],predict_mean_noise[i]]),
+                        c='tab:blue',
+                        #  linestyle='dotted',
+                        label='Mean noise prediction' if i==0 else "")
+                plt.plot(np.array([intervals[i], intervals[i+1]]),
+                        np.array([predict_mean_signal[i],predict_mean_signal[i]]),
+                        c='tab:orange',
+                        #  linestyle='dotted',
+                        label='Mean signal prediction' if i==0 else "")
+                plt.plot(np.array([intervals[i], intervals[i+1]]),
+                        np.array([predict_mean_CRC[i],predict_mean_CRC[i]]),
+                        c='red',
+                        #  linestyle='dotted',
+                        label='Mean CRC prediction' if i==0 else "")
 
     # --------------------------------------------------------------------------------------
 
@@ -530,6 +565,8 @@ def plot_predict_wrt_SNR_CRC(SNR,
                fontsize=14)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
+    if zoom_SNR :
+        plt.xlim(zoom_window)
     if title is not None:
         plt.title(title,
                   wrap=True,

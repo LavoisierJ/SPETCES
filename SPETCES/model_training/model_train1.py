@@ -31,7 +31,7 @@ epochs = 2000
 batch_size = 128
 learning_rate_initial = 0.01
 
-name_of_dataset = 'heavymodel_realCR_6_384_1024trace'
+name_of_dataset = 'heavymodel_realCR_ANhm_6_384_1024trace'
 
 
 # optimizer_1d = tf.keras.optimizers.Adam(learning_rate=LRreducer(initial_learning_rate=0.001,
@@ -99,34 +99,34 @@ model_2D.compile(loss="binary_crossentropy",
 
 
 # Training data 
-data_noise_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/noise_dataset_train_2497_traces_noise15_SNR4_traces.npy')[:1800]
+data_noise_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/noise_dataset_train_2497_traces_noise15_SNR4_traces.npy')#[:1800]
 data_noise_validation = data_noise_train[:int(np.shape(data_noise_train)[0]*0.1)] #validation is 10 % of the training set
 data_noise_train = data_noise_train[int(np.shape(data_noise_train)[0]*0.1):] #training is 90 % of the training set
 
-data_signal_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_train_dataset_1605_traces_noise15_SNR4_traces.npy')
-data_signal_validation = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_validation_dataset_175_traces_noise15_SNR4_traces.npy')
+# data_signal_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_train_dataset_1605_traces_noise15_SNR4_traces.npy')
+# data_signal_validation = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_validation_dataset_175_traces_noise15_SNR4_traces.npy')
 
 # data_signal_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2143_traces_noise15_SNR4_traces.npy')
 # data_signal_validation = data_signal_train[:int(np.shape(data_signal_train)[0]*0.1)] #validation is 10 % of the training set
 # data_signal_train = data_signal_train[int(np.shape(data_signal_train)[0]*0.1):] #training is 90 % of the training set
 
 
-# data_signal_train1 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
-# data_signal_train2 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2432_traces_noise15_SNR4_traces.npy')[:1000]
+data_signal_train1 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
+data_signal_train2 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2143_traces_noise15_SNR4_traces.npy')[:1200]
 
 
-# data_signal_validation_1 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
-# data_signal_validation_2 = data_signal_train2[:int(np.shape(data_signal_train2)[0]*0.1)] #validation is 10 % of the training set
+data_signal_validation_1 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
+data_signal_validation_2 = data_signal_train2[:int(np.shape(data_signal_train2)[0]*0.1)] #validation is 10 % of the training set
 
-# data_signal_train2 = data_signal_train2[int(np.shape(data_signal_train2)[0]*0.1):] #training is 90 % of the training set
+data_signal_train2 = data_signal_train2[int(np.shape(data_signal_train2)[0]*0.1):] #training is 90 % of the training set
 
-# data_signal_train = np.append(data_signal_train1,
-#                               data_signal_train2,
-#                               axis=0)
+data_signal_train = np.append(data_signal_train1,
+                              data_signal_train2,
+                              axis=0)
 
-# data_signal_validation = np.append(data_signal_validation_1,
-#                                   data_signal_validation_2,
-#                                   axis=0)
+data_signal_validation = np.append(data_signal_validation_1,
+                                  data_signal_validation_2,
+                                  axis=0)
 
 
 # ---------- Train treatment ---------------------

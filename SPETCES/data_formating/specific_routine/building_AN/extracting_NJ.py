@@ -150,10 +150,11 @@ def pass_T1(list_traces):
                 indicator = True
                 break
             else:
+                print("Number of crossings: ", trigger_infos["NC"], " not in range [", dict_trigger_parameter["nc_min"], ",", dict_trigger_parameter["nc_max"], "]")
                 indicator = False
         except ValueError as e:
             # No T1 crossing, no trigger
-            # print(k, ": No trigger.")
+            print("No trigger.")
             indicator = False
             pass
     return(indicator)
