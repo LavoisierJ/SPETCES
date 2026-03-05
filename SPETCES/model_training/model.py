@@ -6,6 +6,82 @@ INIT_LR = 1e-4
 MAX_LR = 1e-2
 regul=0
 
+
+class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(
+        self,
+        base_lr=0.001,
+        max_lr=0.006,
+        step_size=2000.,
+        mode='triangular2',
+        gamma=1.,
+        scale_fn=None,
+        scale_mode='cycle'
+    ):
+        super(MyLRSchedule, self).__init__()
+        self.base_lr = base_lr
+        self.max_lr = max_lr
+        self.step_size = step_size
+        self.mode = mode
+        self.gamma = gamma
+        if scale_fn == None:
+            if self.mode == 'triangular':
+                self.scale_fn = lambda x: 1.
+                self.scale_mode = 'cycle'
+            elif self.mode == 'triangular2':
+                self.scale_fn = lambda x: 1/(2.**(x-1))
+                self.scale_mode = 'cycle'
+            elif self.mode == 'exp_range':
+                self.scale_fn = lambda x: gamma**(x)
+                self.scale_mode = 'iterations'
+        else:
+            self.scale_fn = scale_fn
+            self.scale_mode = scale_mode
+        self.clr_iterations = 0.
+        self.trn_iterations = 0.
+        self.history = {}
+
+        self._reset()
+
+    def _reset(self, new_base_lr=None, new_max_lr=None,
+               new_step_size=None):
+        """Resets cycle iterations.
+        Optional boundary/step size adjustment.
+        """
+        if new_base_lr != None:
+            self.base_lr = new_base_lr
+        if new_max_lr != None:
+            self.max_lr = new_max_lr
+        if new_step_size != None:
+            self.step_size = new_step_size
+        self.clr_iterations = 0.
+
+    def __call__(self, step):
+        step_ = tf.cast(step, tf.float32)
+        cycle = np.floor(1+(step_)/(2*self.step_size))
+        x = np.abs((step_)/self.step_size - 2*cycle + 1)
+        if self.scale_mode == 'cycle':
+            return self.base_lr + (self.max_lr-self.base_lr)*np.maximum(0, (1-x))*self.scale_fn(cycle)
+        else:
+            return self.base_lr + (self.max_lr-self.base_lr)*np.maximum(0, (1-x))*self.scale_fn(self.clr_iterations)
+
+    def get_config(self):
+        config = {
+            "base_lr": self.base_lr,
+            "max_lr": self.max_lr,
+            "step_size": self.step_size,
+            "mode": self.mode,
+            "gamma": self.gamma,
+            "scale_fn": self.scale_fn,
+            "scale_mode": self.scale_mode
+        }
+
+        return config
+
+
+
+
 def model_1D_def(trace_shape=512,
                  kernel_size=11,
                  CNN_layers=32
@@ -81,10 +157,10 @@ def model_2D_def(trace_shape=512,
 def resnet_block_1d(x, filters, kernel_size=3, stride=1):
     shortcut = x
     x = tf.keras.layers.Conv1D(filters, kernel_size, strides=stride, padding='same')(x)
-    x = tf.keras.layers.BatchNormalization()(x)
+    #x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Activation('relu')(x)
     x = tf.keras.layers.Conv1D(filters, kernel_size, padding='same')(x)
-    x = tf.keras.layers.BatchNormalization()(x)
+    #x = tf.keras.layers.BatchNormalization()(x)
     if shortcut.shape[-1] != filters:
         shortcut = tf.keras.layers.Conv1D(filters, 1, strides=stride, padding='same')(shortcut)
     x = tf.keras.layers.Add()([x, shortcut])
@@ -98,7 +174,7 @@ def build_cnn1d_resnet(input_shape=(384, 2),
 
     # Couche initiale
     x = tf.keras.layers.Conv1D(filters*4, 7, strides=2, padding='same')(inputs)
-    x = tf.keras.layers.BatchNormalization()(x)
+    #x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Activation('relu')(x)
     x = tf.keras.layers.MaxPooling1D(3, strides=2, padding='same')(x)
 
@@ -106,7 +182,7 @@ def build_cnn1d_resnet(input_shape=(384, 2),
     x = resnet_block_1d(x, filters, kernel_size=kernel_size)
     x = resnet_block_1d(x, filters*2, kernel_size=kernel_size, stride=2)
     x = resnet_block_1d(x, filters*2, kernel_size=kernel_size)
-    x = resnet_block_1d(x, filters*4, kernel_size=kernel_size, stride=2)
+    #x = resnet_block_1d(x, filters*4, kernel_size=kernel_size, stride=2)
     x = resnet_block_1d(x, filters*4, kernel_size=kernel_size)
     # Couche finale
     x = tf.keras.layers.GlobalAveragePooling1D()(x)
@@ -196,7 +272,8 @@ class printlearningrate(tf.keras.callbacks.Callback):
 class LearningRateLogger(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
-        logs['learning_rate'] = self.model.optimizer.learning_rate.numpy()
+        #logs['learning_rate'] = self.model.optimizer.learning_rate.numpy()
+        logs['learning_rate'] = self.model.optimizer.learning_rate
         print(f"Learning rate: {logs['learning_rate']}")
 
 if __name__ == "__main__":

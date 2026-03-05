@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np 
 import os
 
-from SPETCES.model_training.model import model_1D_def, model_2D_def, build_cnn1d_resnet, build_cnn2d_resnet, LRreducer, printlearningrate, LearningRateLogger
+from SPETCES.model_training.model import model_1D_def, model_2D_def, build_cnn1d_resnet, build_cnn2d_resnet, LRreducer, printlearningrate, LearningRateLogger, MyLRSchedule
 from SPETCES.imported_fcts import plot_loss, plot_accuracy, plot_learning_rate, master_path, path_weights_1D, path_weights_2D
 
 tf.config.run_functions_eagerly(True)
@@ -18,21 +18,25 @@ tf.config.run_functions_eagerly(True)
 # model_1D = model_1D_def(trace_shape=384)
 # model_2D = model_2D_def(trace_shape=384)
 
-model_1D = build_cnn1d_resnet(input_shape=(384, 2)
-                            #   , filters=8, 
+model_1D = build_cnn1d_resnet(
+    input_shape=(200, 2),
+    filters=32,
                             #   kernel_size=3
-                              )
-model_2D = build_cnn2d_resnet(input_shape=(384, 2, 1), 
-                            #   filters=8, 
+    )
+model_2D = build_cnn2d_resnet(
+    input_shape=(384, 2, 1), 
+    filters=4, 
                             #   kernel_size=3
-                              )
+    )
 
-epochs = 2000
-batch_size = 128
-learning_rate_initial = 0.01
+nb_epochs = 1
+batch_size = 16
+learning_rate_initial = 0.003
+my_lrs = MyLRSchedule(base_lr=0.00005, max_lr=0.001, step_size=500)
+
 
 name_of_dataset = 'heavymodel_realCR_6_384_1024trace'
-
+name_of_dataset = 'heavymodel_realCR_ANhm_6_384_1024trace'
 
 # optimizer_1d = tf.keras.optimizers.Adam(learning_rate=LRreducer(initial_learning_rate=0.001,
 #                                                              patience=15))
@@ -82,10 +86,13 @@ lr_schedule_2d = tf.keras.callbacks.ReduceLROnPlateau(
 
 
 model_1D.compile(loss="binary_crossentropy", 
-                 optimizer="adam", 
+                 optimizer=tf.keras.optimizers.Adam(learning_rate=my_lrs),
                 #  optimizer=tf.keras.optimizers.AdamW(learning_rate=learning_rate_initial,
                 #  weight_decay=0.004),
-                 metrics=["accuracy"])
+                metrics=["accuracy"])
+
+
+#model_1D.load_weights(f'./model_1D_{name_of_dataset}_adam_save.weights.h5')
 
 model_2D.compile(loss="binary_crossentropy", 
                  optimizer="adam", 
@@ -96,15 +103,13 @@ model_2D.compile(loss="binary_crossentropy",
 
 # ---------- Training data -----------
 
-
-
 # Training data 
-data_noise_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/noise_dataset_train_2497_traces_noise15_SNR4_traces.npy')[:1800]
+data_noise_train = np.load(f'/Users/ab212678/Documents/GRAND/data/ML_jolan/{name_of_dataset}/train_test_datasets/noise_dataset_train_2497_traces_noise15_SNR4_traces.npy')[:1800]
 data_noise_validation = data_noise_train[:int(np.shape(data_noise_train)[0]*0.1)] #validation is 10 % of the training set
 data_noise_train = data_noise_train[int(np.shape(data_noise_train)[0]*0.1):] #training is 90 % of the training set
 
-data_signal_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_train_dataset_1605_traces_noise15_SNR4_traces.npy')
-data_signal_validation = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_validation_dataset_175_traces_noise15_SNR4_traces.npy')
+data_signal_train = np.load(f'/Users/ab212678/Documents/GRAND/data/ML_jolan/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
+data_signal_validation = np.load(f'/Users/ab212678/Documents/GRAND/data/ML_jolan/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
 
 # data_signal_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2143_traces_noise15_SNR4_traces.npy')
 # data_signal_validation = data_signal_train[:int(np.shape(data_signal_train)[0]*0.1)] #validation is 10 % of the training set
@@ -178,78 +183,120 @@ true_validation = true_validation[liste_validation]
 
 # --------- Training the models ---------
 
-os.makedirs(f'{master_path}/plots/{name_of_dataset}', exist_ok=True)
-os.makedirs(f'{master_path}/datasets/{name_of_dataset}/compiling_results', exist_ok=True)
+os.makedirs(f'./plots/{name_of_dataset}', exist_ok=True)
+os.makedirs(f'./{name_of_dataset}/compiling_results', exist_ok=True)
 
-history_1D=model_1D.fit(data_train, 
-                        true_train, 
-                        batch_size=batch_size, 
-                        epochs=epochs, 
-                        # validation_split=0.1,
-                        # callbacks=[LearningRateLogger(),
-                        #            lr_schedule_1d],
-                        # verbose=0
-                        validation_data=(data_validation, true_validation)
-                        )
-model_1D.save_weights(path_weights_1D + f'model_1D_{name_of_dataset}_adam.weights.h5')
+data_train = data_train[:, 0:200, :]*1.0
+data_validation = data_validation[:, 0:200, :]*1.0
 
-accuracy_1D = history_1D.history['accuracy']
-val_accuracy_1D = history_1D.history['val_accuracy']
-loss_1D = history_1D.history['loss']
-val_loss_1D = history_1D.history['val_loss']
+data_train_mean = data_train.mean()
+data_train_std  = data_train.std()
 
-training_acc_1D = np.array([accuracy_1D, val_accuracy_1D, loss_1D, val_loss_1D])
-
-plot_loss(history_1D,
-          save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_loss.pdf',
-          display=False)
-# plot_loss(history_1D,
-#           save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_loss',
-#           display=False)
-
-# plot_accuracy(history_1D,
-#               save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_accuracy',
-#               display=False)
-plot_accuracy(history_1D,
-              save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_accuracy.pdf',
-              display=False)
-# plot_learning_rate(history_1D,
-#                    save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_learning_rate',
-#                    display=False)
+data_train -= data_train_mean
+data_train /= data_train_std
 
 
-np.save(f'{master_path}/datasets/{name_of_dataset}/compiling_results/training_acc_1D_{name_of_dataset}_adam.npy', training_acc_1D)
+data_validation -= data_train_mean
+data_validation /= data_train_std
 
-print('\n\n\n\n\n----------------------------------')
-print('Starting training of 2D model')
-print('----------------------------------\n\n\n\n\n')
-history_2D=model_2D.fit(data_train, 
-                        true_train, 
-                        batch_size=batch_size, 
-                        epochs=epochs, 
-                        validation_split=0.1,
-                        # callbacks=[LearningRateLogger(), 
-                        #            lr_schedule_2d]
-                        # validation_data=(data_test, true_test)
-                        )
-model_2D.save_weights(path_weights_2D + f'model_2D_{name_of_dataset}_adam.weights.h5')
-
-accuracy_2D = history_2D.history['accuracy']
-val_accuracy_2D = history_2D.history['val_accuracy']
-loss_2D = history_2D.history['loss']
-val_loss_2D = history_2D.history['val_loss']
-
-training_acc_2D = np.array([accuracy_2D, val_accuracy_2D, loss_2D, val_loss_2D])
-
-plot_loss(history_2D,
-          save_path=f'{master_path}/plots/{name_of_dataset}/model2D_{name_of_dataset}_adam_loss.pdf',
-          display=False)
-plot_accuracy(history_2D,
-              save_path=f'{master_path}/plots/{name_of_dataset}/model2D_{name_of_dataset}_adam_accuracy.pdf',
-              display=False)
-# plot_learning_rate(history_2D,
-#                    save_path=f'{master_path}/plots/{name_of_dataset}/model2D_{name_of_dataset}_adamW_learning_rate',
-#                    display=False)
+# history_1D1 = model_1D.fit(
+#     data_train[0:25],
+#     true_train[0:25],
+#     batch_size=1,
+#     epochs=10,
+#     steps_per_epoch=250,
+#     # validation_split=0.1,
+#     callbacks=[LearningRateLogger()],
+#     #            lr_schedule_1d],
+#     # verbose=0
+#     validation_data=(data_validation[0:10], true_validation[0:10])
+# )
 
 
-np.save(f'{master_path}/datasets/{name_of_dataset}/compiling_results/training_acc_2D_{name_of_dataset}_adam.npy', training_acc_2D)
+
+history_1D2 = model_1D.fit(
+    data_train,
+    true_train,
+    batch_size=2,
+    epochs=40,
+    steps_per_epoch=2500,
+    # validation_split=0.1,
+    callbacks=[LearningRateLogger()],
+    #            lr_schedule_1d],
+    # verbose=0
+    validation_data=(data_validation, true_validation)
+)
+
+
+model_1D.save_weights(f'./model_1D_{name_of_dataset}_adam.weights.h5')
+
+accuracy_1D = history_1D2.history['accuracy']
+val_accuracy_1D = history_1D2.history['val_accuracy']
+loss_1D = history_1D2.history['loss']
+val_loss_1D = history_1D2.history['val_loss']
+lr_1D = history_1D2.history['learning_rate']
+training_acc_1D = np.array([accuracy_1D, val_accuracy_1D, loss_1D, val_loss_1D, lr_1D])
+np.save(f'./training_acc_1D_{name_of_dataset}_adam.npy', training_acc_1D)
+
+
+
+
+if False:
+
+
+    plot_loss(history_1D,
+            save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_loss.pdf',
+            display=False)
+
+
+
+    # plot_loss(history_1D,
+    #           save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_loss',
+    #           display=False)
+
+    # plot_accuracy(history_1D,
+    #               save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_accuracy',
+    #               display=False)
+    plot_accuracy(history_1D,
+                save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_accuracy.pdf',
+                display=False)
+    # plot_learning_rate(history_1D,
+    #                    save_path=f'{master_path}/plots/{name_of_dataset}/model1D_{name_of_dataset}_adam_learning_rate',
+    #                    display=False)
+
+
+   
+
+    print('\n\n\n\n\n----------------------------------')
+    print('Starting training of 2D model')
+    print('----------------------------------\n\n\n\n\n')
+    history_2D=model_2D.fit(data_train, 
+                            true_train, 
+                            batch_size=batch_size, 
+                            epochs=epochs, 
+                            validation_split=0.1,
+                            # callbacks=[LearningRateLogger(), 
+                            #            lr_schedule_2d]
+                            # validation_data=(data_test, true_test)
+                            )
+    model_2D.save_weights(path_weights_2D + f'model_2D_{name_of_dataset}_adam.weights.h5')
+
+    accuracy_2D = history_2D.history['accuracy']
+    val_accuracy_2D = history_2D.history['val_accuracy']
+    loss_2D = history_2D.history['loss']
+    val_loss_2D = history_2D.history['val_loss']
+
+    training_acc_2D = np.array([accuracy_2D, val_accuracy_2D, loss_2D, val_loss_2D])
+
+    plot_loss(history_2D,
+            save_path=f'{master_path}/plots/{name_of_dataset}/model2D_{name_of_dataset}_adam_loss.pdf',
+            display=False)
+    plot_accuracy(history_2D,
+                save_path=f'{master_path}/plots/{name_of_dataset}/model2D_{name_of_dataset}_adam_accuracy.pdf',
+                display=False)
+    # plot_learning_rate(history_2D,
+    #                    save_path=f'{master_path}/plots/{name_of_dataset}/model2D_{name_of_dataset}_adamW_learning_rate',
+    #                    display=False)
+
+
+    np.save(f'{master_path}/datasets/{name_of_dataset}/compiling_results/training_acc_2D_{name_of_dataset}_adam.npy', training_acc_2D)
