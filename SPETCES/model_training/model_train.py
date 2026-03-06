@@ -12,7 +12,7 @@ import os
 from SPETCES.model_training.model import model_1D_def, model_2D_def, build_cnn1d_resnet, build_cnn2d_resnet, LRreducer, printlearningrate, LearningRateLogger, MyLRSchedule
 from SPETCES.imported_fcts import plot_loss, plot_accuracy, plot_learning_rate, master_path, path_weights_1D, path_weights_2D
 
-tf.config.run_functions_eagerly(True)
+#tf.config.run_functions_eagerly(True)
 
 # -------- Importing the models ---------
 # model_1D = model_1D_def(trace_shape=384)
@@ -20,7 +20,7 @@ tf.config.run_functions_eagerly(True)
 
 model_1D = build_cnn1d_resnet(
     input_shape=(200, 2),
-    filters=32,
+    filters=16,
                             #   kernel_size=3
     )
 model_2D = build_cnn2d_resnet(
@@ -104,34 +104,34 @@ model_2D.compile(loss="binary_crossentropy",
 # ---------- Training data -----------
 
 # Training data 
-data_noise_train = np.load(f'/Users/ab212678/Documents/GRAND/data/ML_jolan/{name_of_dataset}/train_test_datasets/noise_dataset_train_2497_traces_noise15_SNR4_traces.npy')[:1800]
+data_noise_train = np.load(f'/sps/grand/blevy/data/{name_of_dataset}/train_test_datasets/noise_dataset_train_2497_traces_noise15_SNR4_traces.npy')[:1800]
 data_noise_validation = data_noise_train[:int(np.shape(data_noise_train)[0]*0.1)] #validation is 10 % of the training set
 data_noise_train = data_noise_train[int(np.shape(data_noise_train)[0]*0.1):] #training is 90 % of the training set
 
-data_signal_train = np.load(f'/Users/ab212678/Documents/GRAND/data/ML_jolan/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
-data_signal_validation = np.load(f'/Users/ab212678/Documents/GRAND/data/ML_jolan/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
+data_signal_train = np.load(f'/sps/grand/blevy/data/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
+data_signal_validation = np.load(f'/sps/grand/blevy/data/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
 
 # data_signal_train = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2143_traces_noise15_SNR4_traces.npy')
 # data_signal_validation = data_signal_train[:int(np.shape(data_signal_train)[0]*0.1)] #validation is 10 % of the training set
 # data_signal_train = data_signal_train[int(np.shape(data_signal_train)[0]*0.1):] #training is 90 % of the training set
 
 
-# data_signal_train1 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
-# data_signal_train2 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2432_traces_noise15_SNR4_traces.npy')[:1000]
+data_signal_train1 = np.load(f'/sps/grand/blevy/data/{name_of_dataset}/train_test_datasets/CR_train_dataset_1304_traces_noise15_SNR4_traces.npy')
+data_signal_train2 = np.load(f'/sps/grand/blevy/data/{name_of_dataset}/train_test_datasets/ANhm_dataset_train_2143_traces_noise15_SNR4_traces.npy')
 
 
-# data_signal_validation_1 = np.load(f'{master_path}/datasets/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
-# data_signal_validation_2 = data_signal_train2[:int(np.shape(data_signal_train2)[0]*0.1)] #validation is 10 % of the training set
+data_signal_validation_1 = np.load(f'/sps/grand/blevy/data/{name_of_dataset}/train_test_datasets/CR_validation_dataset_144_traces_noise15_SNR4_traces.npy')
+data_signal_validation_2 = data_signal_train2[:int(np.shape(data_signal_train2)[0]*0.1)] #validation is 10 % of the training set
 
-# data_signal_train2 = data_signal_train2[int(np.shape(data_signal_train2)[0]*0.1):] #training is 90 % of the training set
+data_signal_train2 = data_signal_train2[int(np.shape(data_signal_train2)[0]*0.1):] #training is 90 % of the training set
 
-# data_signal_train = np.append(data_signal_train1,
-#                               data_signal_train2,
-#                               axis=0)
+data_signal_train = np.append(data_signal_train1,
+                              data_signal_train2,
+                              axis=0)
 
-# data_signal_validation = np.append(data_signal_validation_1,
-#                                   data_signal_validation_2,
-#                                   axis=0)
+data_signal_validation = np.append(data_signal_validation_1,
+                                  data_signal_validation_2,
+                                  axis=0)
 
 
 # ---------- Train treatment ---------------------
@@ -199,6 +199,9 @@ data_train /= data_train_std
 data_validation -= data_train_mean
 data_validation /= data_train_std
 
+n_sample = np.shape(data_train)[0]
+
+
 # history_1D1 = model_1D.fit(
 #     data_train[0:25],
 #     true_train[0:25],
@@ -217,9 +220,9 @@ data_validation /= data_train_std
 history_1D2 = model_1D.fit(
     data_train,
     true_train,
-    batch_size=2,
-    epochs=40,
-    steps_per_epoch=2500,
+    batch_size=n_sample,
+    epochs=5000,
+    #steps_per_epoch=500,
     # validation_split=0.1,
     callbacks=[LearningRateLogger()],
     #            lr_schedule_1d],

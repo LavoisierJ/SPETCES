@@ -22,7 +22,8 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         super(MyLRSchedule, self).__init__()
         self.base_lr = base_lr
         self.max_lr = max_lr
-        self.step_size = step_size
+        self.step_size = tf.cast(step_size, tf.float32)
+
         self.mode = mode
         self.gamma = gamma
         if scale_fn == None:
@@ -59,12 +60,13 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
     def __call__(self, step):
         step_ = tf.cast(step, tf.float32)
-        cycle = np.floor(1+(step_)/(2*self.step_size))
-        x = np.abs((step_)/self.step_size - 2*cycle + 1)
+
+        cycle = tf.math.floor(1+(step_)/(2*self.step_size))
+        x = tf.math.abs((step_)/self.step_size - 2*cycle + 1)
         if self.scale_mode == 'cycle':
-            return self.base_lr + (self.max_lr-self.base_lr)*np.maximum(0, (1-x))*self.scale_fn(cycle)
+            return self.base_lr + (self.max_lr-self.base_lr)*tf.math.maximum(0.0, (1-x))*self.scale_fn(cycle)
         else:
-            return self.base_lr + (self.max_lr-self.base_lr)*np.maximum(0, (1-x))*self.scale_fn(self.clr_iterations)
+            return self.base_lr + (self.max_lr-self.base_lr)*tf.math.maximum(0.0, (1-x))*self.scale_fn(self.clr_iterations)
 
     def get_config(self):
         config = {
@@ -173,16 +175,16 @@ def build_cnn1d_resnet(input_shape=(384, 2),
     inputs = tf.keras.layers.Input(shape=input_shape)
 
     # Couche initiale
-    x = tf.keras.layers.Conv1D(filters*4, 7, strides=2, padding='same')(inputs)
+    x = tf.keras.layers.Conv1D(filters*4, 3, strides=2, padding='same')(inputs)
     #x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Activation('relu')(x)
-    x = tf.keras.layers.MaxPooling1D(3, strides=2, padding='same')(x)
+    x = tf.keras.layers.MaxPooling1D(2, strides=2, padding='same')(x)
 
     # Blocs ResNet
     x = resnet_block_1d(x, filters, kernel_size=kernel_size)
-    x = resnet_block_1d(x, filters*2, kernel_size=kernel_size, stride=2)
-    x = resnet_block_1d(x, filters*2, kernel_size=kernel_size)
-    #x = resnet_block_1d(x, filters*4, kernel_size=kernel_size, stride=2)
+    # x = resnet_block_1d(x, filters*2, kernel_size=kernel_size, stride=2)
+    # x = resnet_block_1d(x, filters*2, kernel_size=kernel_size)
+    # x = resnet_block_1d(x, filters*4, kernel_size=kernel_size, stride=2)
     x = resnet_block_1d(x, filters*4, kernel_size=kernel_size)
     # Couche finale
     x = tf.keras.layers.GlobalAveragePooling1D()(x)
